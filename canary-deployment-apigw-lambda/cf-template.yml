@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  ApiGatewayApp:
+    Type: 'AWS::ApiGateway::RestApi'
+    Description: 'Example from AWS Blogs'
+    Properties:
+      Body:
+        info:
+          version: '2020-11-05T17:30:27Z'
+          title: MyAPI
+        paths:
+          /v1/hello:
+            get:
+              x-amazon-apigateway-integration:
+                contentHandling: CONVERT_TO_TEXT
+                responses:
+                  default:
+                    statusCode: '200'
+                uri: !Sub >-
+                  arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:${!stageVariables.lambdaAlias}/invocations
+                httpMethod: POST
+                passthroughBehavior: when_no_match
+                type: aws_proxy
+              responses:
+                '200':
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Empty'
+                  description: 200 response
+        servers:
+          - url: >-
+              https://${ApiGatewayApp}.execute-api.us-east-1.amazonaws.com/{basePath}
+            variables:
+              basePath:
+                default: /dev
+        components:
+          schemas:
+            Empty:
+              type: object
+              title: Empty Schema
+        openapi: 3.0.1
+        x-amazon-apigateway-request-validators:
+          Validate query string parameters and headers:
+            validateRequestParameters: false
+            validateRequestBody: false
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  ApiGatewayAppProdStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      DeploymentId: !Ref ApiGatewayAppDeployment08c98bf4cc
+      RestApiId: !Ref ApiGatewayApp
+      Variables:
+        lambdaAlias: prod
+      StageName: prod
+  ApiFunctionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Tags:
+        - Value: SAM
+          Key: 'lambda:createdBy'
+  ApiDevPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Sub >-
+        arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:dev
+      SourceArn: !Sub >-
+        arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApp}/*/GET/v1/hello
+      Principal: apigateway.amazonaws.com
+    DependsOn:
+      - ApiFunction
+      - ApiGatewayApp
+      - FunctionAliasDev
+  FunctionAliasDev:
+    Type: 'AWS::Lambda::Alias'
+    Properties:
+      Description: development
+      FunctionVersion: $LATEST
+      Name: dev
+      FunctionName: !Ref ApiFunction
+  ApiProdPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Sub >-
+        arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:prod
+      SourceArn: !Sub >-
+        arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApp}/*/GET/v1/hello
+      Principal: apigateway.amazonaws.com
+    DependsOn:
+      - ApiFunction
+      - ApiGatewayApp
+      - ApiFunctionAliasprod
+  ApiGatewayAppDeployment08c98bf4cc:
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      RestApiId: !Ref ApiGatewayApp
+  ApiFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+              # TODO implement
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+      FunctionName: !Ref FunctionName
+      Tags:
+        - Value: SAM
+          Key: 'lambda:createdBy'
+      Handler: index.lambda_handler
+      Role: !GetAtt 
+        - ApiFunctionRole
+        - Arn
+      Runtime: python3.8
+  ApiFunctionVersione2053ecb5d:
+    DeletionPolicy: Retain
+    Type: 'AWS::Lambda::Version'
+    Properties:
+      FunctionName: !Ref ApiFunction
+  ApiGatewayAppDevStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      DeploymentId: !Ref ApiGatewayAppDeployment08c98bf4cc
+      RestApiId: !Ref ApiGatewayApp
+      Variables:
+        lambdaAlias: dev
+      StageName: dev
+  ApiFunctionAliasprod:
+    Type: 'AWS::Lambda::Alias'
+    Properties:
+      FunctionVersion: !GetAtt 
+        - ApiFunctionVersione2053ecb5d
+        - Version
+      FunctionName: !Ref ApiFunction
+      Name: prod
+Description: API Hello
+Parameters:
+  FunctionName:
+    Default: HelloWorld
+    Type: String
+  ApiGatewayNameParameter:
+    Default: MyAPI
+    Type: String
+Outputs:
+  ApiGatewayApp:
+    Description: API Gateway - API Application
+    Value: !Ref ApiGatewayApp
+  ApiFunction:
+    Description: Lambda Function
+    Value: !Ref ApiFunction
+  APIEndpointProd:
+    Description: Production Endpoint
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ApiGatewayApp
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ApiGatewayAppProdStage
+          - /v1/hello
+  APIEndpointDev:
+    Description: Development Endpoint
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ApiGatewayApp
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ApiGatewayAppDevStage
+          - /v1/hello
