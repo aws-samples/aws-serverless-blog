@@ -1,11 +1,7 @@
-## My Project
+## AWS Serverless Blog
 
-TODO: Fill this README out!
+AWS Serverless Blog article code and configurations.
 
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
 
 ## Security
 
@@ -13,5 +9,5 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 
 ## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
+This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.
 
